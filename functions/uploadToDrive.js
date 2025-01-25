@@ -1,4 +1,6 @@
 // netlify/functions/uploadToDrive.js
+// Sube un PDF en base64 a Google Drive, dentro de tu carpeta ID,
+// evitando el error "part.body.pipe is not a function" usando PassThrough.
 
 const { google } = require('googleapis');
 const { v4: uuidv4 } = require('uuid');
@@ -6,7 +8,7 @@ const stream = require('stream');
 
 exports.handler = async (event) => {
   try {
-    // Aceptar solo POST
+    // Solo POST
     if (event.httpMethod !== 'POST') {
       return {
         statusCode: 405,
@@ -14,7 +16,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // 1. Parsear el body JSON
+    // 1. Parsear el body JSON (no multipart)
     const body = JSON.parse(event.body || '{}');
     const { filename, fileContent } = body;
 
@@ -30,8 +32,7 @@ exports.handler = async (event) => {
     // 2. Convertir base64 a Buffer
     const fileBuffer = Buffer.from(fileContent, 'base64');
 
-    // 3. Crear un Stream a partir del Buffer
-    //    Esto evita el error "part.body.pipe is not a function"
+    // 3. Crear un Stream a partir del Buffer (PassThrough)
     const bufferStream = new stream.PassThrough();
     bufferStream.end(fileBuffer);
 
@@ -42,8 +43,8 @@ exports.handler = async (event) => {
     });
     const drive = google.drive({ version: 'v3', auth });
 
-    // 5. Subir el archivo a tu carpeta
-    const folderId = '1PBLBzG0iVxvCIA0jjWGDTVfoJxJw3LcT'; // Ajusta si tu carpeta difiere
+    // 5. Subir el archivo a tu carpeta (asegúrate de que la carpeta esté compartida con la Service Account)
+    const folderId = '1PBLBzG0iVxvCIA0jjWGDTVfoJxJw3LcT'; // Ajusta si tienes otro ID de carpeta
     const uploadResponse = await drive.files.create({
       requestBody: {
         name: filename || `Documento-${uuidv4()}.pdf`,
@@ -52,14 +53,15 @@ exports.handler = async (event) => {
       },
       media: {
         mimeType: 'application/pdf',
-        body: bufferStream // <-- Pasamos el stream
+        body: bufferStream
       }
     });
 
+    // 6. fileId
     const fileId = uploadResponse.data.id;
     console.log('[uploadToDrive] Subido con éxito. fileId:', fileId);
 
-    // 6. Respuesta
+    // 7. Respuesta exitosa (sin logs extra)
     return {
       statusCode: 200,
       body: JSON.stringify({
@@ -67,15 +69,16 @@ exports.handler = async (event) => {
         fileId
       })
     };
-
   } catch (error) {
     console.error('Error en uploadToDrive:', error);
+
+    // Inyectar stacktrace en la respuesta:
     return {
       statusCode: 500,
       body: JSON.stringify({
         success: false,
         error: error.message,
-        stack: error.stack // inyectamos el stacktrace
+        stack: error.stack
       })
     };
   }
