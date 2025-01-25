@@ -1,6 +1,8 @@
 // netlify/functions/processDoc.js
-// Descarga el PDF desde Drive y luego llama a pdf-parse.
-// Inyecta logs adicionales para verificar la longitud del buffer.
+// 1) Descarga el PDF desde Drive
+// 2) Verifica el tamaño del buffer y lo loguea
+// 3) Llama a pdf-parse con el buffer
+// 4) Envía el texto a GPT
 
 const { google } = require('googleapis');
 const fetch = require('node-fetch');
@@ -8,35 +10,35 @@ const pdfParse = require('pdf-parse');
 
 exports.handler = async (event) => {
   try {
-    // Solo POST
+    // Aceptar solo POST
     if (event.httpMethod !== 'POST') {
       return {
         statusCode: 405,
-        body: JSON.stringify({ error: 'Method not allowed' })
+        body: JSON.stringify({ error: 'Method Not Allowed, use POST.' })
       };
     }
 
-    // 1. Leer el fileId
+    // 1. Leer el fileId desde el body
     const { fileId } = JSON.parse(event.body || '{}');
     if (!fileId) {
       return {
         statusCode: 400,
         body: JSON.stringify({
           success: false,
-          error: 'Falta fileId'
+          error: 'Falta fileId en el body'
         })
       };
     }
     console.log('[processDoc] Recibido fileId:', fileId);
 
-    // 2. Autenticación con Google Drive
+    // 2. Autenticación con Google
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
       scopes: ['https://www.googleapis.com/auth/drive']
     });
     const drive = google.drive({ version: 'v3', auth });
 
-    // 3. Descargar el PDF
+    // 3. Descargar el PDF desde Drive
     console.log('[processDoc] Descargando PDF de Drive...');
     const response = await drive.files.get(
       { fileId, alt: 'media' },
@@ -48,17 +50,24 @@ exports.handler = async (event) => {
     console.log('[processDoc] pdfBuffer length:', pdfBuffer.length);
 
     if (pdfBuffer.length < 200) {
-      // Este es un chequeo arbitrario, podrías usar < 1000, etc.
-      console.log('[processDoc] WARNING: Buffer muy pequeño; posiblemente PDF vacío o sin permisos.');
+      console.log(
+        '[processDoc] WARNING: El PDF descargado parece muy pequeño (o vacío). ' +
+        'Podría causar error en pdf-parse.'
+      );
     }
 
-    // 5. Procesar con pdf-parse
-    console.log('[processDoc] Parseando PDF...');
+    // 5. Parsear con pdf-parse
+    console.log('[processDoc] Parseando PDF con pdf-parse...');
     const pdfData = await pdfParse(pdfBuffer);
+
+    // Loguea algunas claves del objeto pdfData
+    console.log('[processDoc] pdf-parse result keys:', Object.keys(pdfData));
+
     const text = pdfData.text;
-    console.log('[processDoc] Extrajo texto (primeros 200 chars):', text.slice(0, 200));
+    console.log('[processDoc] Longitud del texto extraído:', text.length);
 
     // 6. Llamar a OpenAI
+    console.log('[processDoc] Llamando a OpenAI...');
     const prompt = `
       Analiza este texto de licitación y devuélveme:
       - Resumen
@@ -70,7 +79,7 @@ exports.handler = async (event) => {
       Texto:
       ${text}
     `;
-    console.log('[processDoc] Enviando a GPT...');
+
     const gptResponse = await fetch('https://api.openai.com/v1/completions', {
       method: 'POST',
       headers: {
@@ -87,12 +96,13 @@ exports.handler = async (event) => {
 
     const gptData = await gptResponse.json();
     if (!gptData.choices || !gptData.choices.length) {
-      throw new Error('GPT no devolvió texto');
+      throw new Error('OpenAI no devolvió texto');
     }
     const gptText = gptData.choices[0].text.trim();
 
-    console.log('[processDoc] Respuesta GPT con éxito.');
+    console.log('[processDoc] Respuesta de GPT obtenida con éxito.');
 
+    // 7. Retornar el resultado
     return {
       statusCode: 200,
       body: JSON.stringify({
@@ -102,6 +112,7 @@ exports.handler = async (event) => {
     };
   } catch (error) {
     console.error('Error en processDoc:', error);
+    // Inyectar stacktrace en la respuesta para verlo en consola
     return {
       statusCode: 500,
       body: JSON.stringify({
