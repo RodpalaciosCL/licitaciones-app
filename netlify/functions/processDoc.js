@@ -6,7 +6,6 @@ const { Configuration, OpenAIApi } = require("openai");
 
 exports.handler = async (event) => {
   try {
-    // Tomamos directUrl de la querystring
     const { directUrl } = event.queryStringParameters || {};
     if (!directUrl) {
       return {
@@ -15,26 +14,23 @@ exports.handler = async (event) => {
       };
     }
 
-    // Descargamos el PDF usando node-fetch
     const pdfResponse = await fetch(directUrl);
     if (!pdfResponse.ok) {
       throw new Error(
         `No se pudo descargar el PDF: ${pdfResponse.status} ${pdfResponse.statusText}`
       );
     }
+
     const pdfBuffer = await pdfResponse.buffer();
 
-    // Extraemos texto con pdf-parse
     const pdfData = await pdfParse(pdfBuffer);
     const extractedText = pdfData.text;
 
-    // Configuramos OpenAI
     const configuration = new Configuration({
-      apiKey: "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"
+      apiKey: "sk-proj-...", 
     });
     const openai = new OpenAIApi(configuration);
 
-    // Pedimos resumen a GPT
     const gptResponse = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
       messages: [
