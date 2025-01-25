@@ -1,132 +1,99 @@
-const { google } = require('googleapis');
-const pdfParse = require('pdf-parse'); // Asegúrate de tener "pdf-parse": "^1.1.1" en tu package.json
+// netlify/functions/processDoc.js
 
-exports.handler = async (event, context) => {
+const { google } = require("googleapis");
+const pdfParse = require("pdf-parse");
+const { Configuration, OpenAIApi } = require("openai");
+
+exports.handler = async (event) => {
   try {
-    // 1. Obtener el fileId de la querystring (por ej: ?fileId=xxxxxx)
-    const fileId = event.queryStringParameters.fileId;
+    const { fileId } = event.queryStringParameters || {};
     if (!fileId) {
       return {
         statusCode: 400,
-        body: JSON.stringify({
-          success: false,
-          error: 'No se recibió "fileId" en la URL',
-        }),
+        body: JSON.stringify({ error: "Falta el parámetro fileId" }),
       };
     }
 
-    // 2. Log para verificar el fileId recibido
-    console.log('>> processDoc.js: fileId recibido:', fileId);
+    const auth = new google.auth.JWT(
+      "licita-personal@licita-448900.iam.gserviceaccount.com", 
+      null,
+      `-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDO7dQYH+kVJAiS
+/wzHbkizKdfi+qMpzUFrBhFNnvSUnf6nBDrt64HunHIkF/TYSHczsCDouyYH360R
+WfyQtIk1K12h5Z74RySfOy+1y0yBautNQHeR8bmZ0wy7nKvYUpbEkxEPjYWwOp4E
+T3Xflv0sJZMTgqvAXx8+ZjtMcubN7cVpUpzQIRn+Vgd/TCVM5JYjyIobFBpPlp9D
+jwKX3wmNkSBWzVOtv6CKHall3apIhxVKfqAfjL6xoN/0CgVt+0SXmA6zNun0b59e
+EnVoKqYL7KeSDPVlfGkPKTGkTWoitwlHx//ektc6xnk2geCyYm5QgtiFPc8DWNEd
+9qprAug1AgMBAAECggEALcpuSUpic1WuegzroIQ0nUUQq39INPthUxQcJx+aQvr1
+e7MRcU3QymMfVQJiIaxjiHIczjN/1nU2YKUXoVP6GuR2S1m7RHjFz2CzDZkn3Gmz
+GTy/WPHzXulXo3qngm7AQ07CEz1/jIBkMFL/JBPPAYJtGf+sDx1dlhrcW23/yijC
+RE+l+h1Z3WHAkby8+O0T7IQvgR4lnUQGLDPSBtnnTW+PXv6xhcpp5rX8WQryqc9B
+wSr/9YAWNibVWCnvTU0Onb4Jz/njxLkqhUfXEZhncnh3fRkNWjvieDWCy3q4WnO3
+UiqUIdZ2XHicSO/0K9tcLmTydXAVQ0WgHeLGGBBKgQKBgQDsdaUX+E3yZVrSlsFk
+/56ploZ8pl2+5RHCK/KEaF/6aLFF9M1eV24DrdNO8jn8ZjBwUwncORm6vjoqJ+Fn
+ToFjrqdvQaTsMsj0/VburaJyZ91tupQRu9EdKfqR4bBcXIj1/sI8cWfahHM978n5
+1NwlZe2gn82axc/zlM1e9vX3QQKBgQDgB3VhS72Vii2K5qFQ02SkMa1Fbyz77/Cv
+FjeHCzszoAAdoKwuWFLNBatFdDm6PrIgG/TLPBHzkwCMa8OoK/Mmb7YR2wwIoxHj
+m2ScH8j+PI7H7Csq+OoHTmXiTNIQ7AijoPeZ4jVsxON9MoChjr4XY4hzGn/2wHHd
+2nOH97qH9QKBgQCBO4LxaMnhErfipHYqJvKmKRhzg9F0hWmBP9eZuhnKl/FbFIIx
+b4M3C4eTfBto8MjEev3GmIaRY2oSpB0zAtsAifIEglIKrW7bRqJ+a/N+p3mDgRdv
+4cBWOh0yIbDrqb9JAuVRd4GVEhKR5T30BvwSjHSk9vG+ByKyM79SiZLAgQKBgQDT
+olgh1OJBHWrOl/b2muytK/yq5k7RpaZyUIOeQF7p8xGI65scoPV/lwZoM1bBea7e
+JGrJf3LZ7hoLjVYlTXeC7O9LyOmCU0J4CPkvf9tpSR39AT76dnDm/AnFkZq0v7Wd
+llexeH/Nw+XABPB9LpKnF7D0Q6l1GfG3ikGvxbfh7QKBgGjBqv9NX4oZ+a9MyP3I
+H566dgifUGFTaQKuQJy5mq7kfI2DfgEg2ingXczdGng6d3DAcnXpaxmrStb2i8QA
+j+BtawbGWUy0hbOykbWpih/4vafeBt1ausTcFQO57nmquUPxvLNJxdAsrrSTlFE7
+N8s7oaeoWPGcC+SESqCLDdgI
+-----END PRIVATE KEY-----
+`,
+      ["https://www.googleapis.com/auth/drive.readonly"]
+    );
 
-    // 3. Cargar credenciales de la variable de entorno
-    const serviceAccountJSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-    if (!serviceAccountJSON) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          success: false,
-          error: 'Falta la variable de entorno GOOGLE_SERVICE_ACCOUNT_JSON en Netlify.',
-        }),
-      };
-    }
+    const drive = google.drive({ version: "v3", auth });
+    const response = await drive.files.get(
+      { fileId, alt: "media" },
+      { responseType: "stream" }
+    );
 
-    let credentials;
-    try {
-      credentials = JSON.parse(serviceAccountJSON);
-    } catch (parseErr) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          success: false,
-          error: 'No se pudo parsear GOOGLE_SERVICE_ACCOUNT_JSON. Revisar comillas o formato.',
-          details: parseErr.message,
-        }),
-      };
-    }
+    const pdfBuffer = await streamToBuffer(response.data);
+    const pdfData = await pdfParse(pdfBuffer);
+    const extractedText = pdfData.text;
 
-    // 4. Autenticar con Google Drive usando googleapis
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/drive'],
+    const configuration = new Configuration({
+      apiKey: "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",
     });
-    const drive = google.drive({ version: 'v3', auth });
+    const openai = new OpenAIApi(configuration);
 
-    // 5. Descargar el contenido del PDF (alt: 'media')
-    let fileData;
-    try {
-      const response = await drive.files.get(
-        { fileId, alt: 'media' },
-        { responseType: 'arraybuffer' } // Importante para obtener datos binarios
-      );
-      fileData = response.data;
-    } catch (downloadErr) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          success: false,
-          error: 'Error al descargar el PDF desde Drive.',
-          details: downloadErr.message,
-        }),
-      };
-    }
+    const gptResponse = await openai.createChatCompletion({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: "Eres un asistente que resume texto." },
+        { role: "user", content: `Por favor, resume lo siguiente:\n\n${extractedText}` },
+      ],
+    });
 
-    // 6. Convertir el arraybuffer a Buffer
-    const buffer = Buffer.from(fileData);
+    const resumen = gptResponse.data.choices[0].message.content.trim();
 
-    // 7. Log para ver el tamaño del PDF en bytes
-    console.log('>> processDoc.js: buffer.length =', buffer.length);
-
-    // Opcional: si quieres mandar ese valor en la respuesta
-    if (buffer.length === 0) {
-      // Indica que no llegó contenido
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          success: false,
-          error: 'El archivo descargado está vacío (0 bytes). Revisa permisos o fileId.',
-        }),
-      };
-    }
-
-    // 8. Parsear el PDF con pdf-parse
-    let parsedPDF;
-    try {
-      parsedPDF = await pdfParse(buffer);
-    } catch (parseErr) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          success: false,
-          error: 'pdf-parse arrojó un error (posible PDF corrupto o no estándar).',
-          details: parseErr.message,
-        }),
-      };
-    }
-
-    // 9. Extraemos algo de información del PDF
-    const extractedText = parsedPDF.text || '';
-    const textLength = extractedText.length;
-
-    // 10. Retornar un JSON con info útil
     return {
       statusCode: 200,
       body: JSON.stringify({
-        success: true,
-        bufferLength: buffer.length,
-        textLength: textLength,
-        excerpt: extractedText.slice(0, 200), // Los primeros 200 caracteres del texto extraído
+        mensaje: "Procesado con éxito",
+        resumen,
       }),
     };
-  } catch (err) {
-    // Cualquier otro error no controlado cae aquí
-    console.error('>> processDoc.js: catch global error:', err);
+  } catch (error) {
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: 'Error inesperado en processDoc.js',
-        details: err.message,
-      }),
+      body: JSON.stringify({ error: error.message }),
     };
   }
 };
+
+function streamToBuffer(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on("data", (chunk) => chunks.push(chunk));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", (err) => reject(err));
+  });
+}
