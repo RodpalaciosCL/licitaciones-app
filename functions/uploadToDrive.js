@@ -1,6 +1,4 @@
 // netlify/functions/uploadToDrive.js
-// Sube un PDF en base64 a Google Drive, dentro de tu carpeta ID.
-// Devuelve el fileId sin usar busboy.
 
 const { google } = require('googleapis');
 const { v4: uuidv4 } = require('uuid');
@@ -19,11 +17,7 @@ exports.handler = async (event) => {
     const body = JSON.parse(event.body || '{}');
     const { filename, fileContent } = body;
 
-    // Logs mínimos
-    console.log('[uploadToDrive] Recibido:');
-    console.log('  filename:', filename);
-    console.log('  fileContent length:', fileContent ? fileContent.length : 0);
-
+    console.log('[uploadToDrive] Recibido:', { filename });
     if (!fileContent) {
       return {
         statusCode: 400,
@@ -41,8 +35,8 @@ exports.handler = async (event) => {
     });
     const drive = google.drive({ version: 'v3', auth });
 
-    // 4. Subir el archivo a tu carpeta (asegúrate de que la carpeta esté compartida con la Service Account)
-    const folderId = '1PBLBzG0iVxvCIA0jjWGDTVfoJxJw3LcT'; // Ajusta a tu folder ID real
+    // 4. Subir el archivo a tu carpeta
+    const folderId = '1PBLBzG0iVxvCIA0jjWGDTVfoJxJw3LcT'; 
     const uploadResponse = await drive.files.create({
       requestBody: {
         name: filename || `Documento-${uuidv4()}.pdf`,
@@ -55,28 +49,27 @@ exports.handler = async (event) => {
       }
     });
 
-    // 5. fileId
     const fileId = uploadResponse.data.id;
     console.log('[uploadToDrive] Subido con éxito. fileId:', fileId);
 
-    // 6. Respuesta (inyectamos logs)
+    // Respuesta
     return {
       statusCode: 200,
       body: JSON.stringify({
         success: true,
-        fileId,
-        logs: {
-          receivedFilename: filename,
-          receivedContentLength: fileContent.length,
-          usedFolderId: folderId
-        }
+        fileId
       })
     };
+
   } catch (error) {
     console.error('Error en uploadToDrive:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({
+        success: false,
+        error: error.message,
+        stack: error.stack // <-- Log detallado en la respuesta
+      })
     };
   }
 };
