@@ -24,17 +24,16 @@ exports.handler = async (event, context) => {
     });
     const drive = google.drive({ version: 'v3', auth });
 
-    // Convertir base64 a buffer
+    // Convertir la cadena base64 a Buffer
     const buffer = Buffer.from(fileContent, 'base64');
 
     // Metadata del archivo
     const fileMetadata = { name: filename };
-    // Si definimos un "GOOGLE_FOLDER_ID" en Netlify, lo utilizamos:
     if (process.env.GOOGLE_FOLDER_ID) {
       fileMetadata.parents = [process.env.GOOGLE_FOLDER_ID];
     }
 
-    // Asumimos que es PDF
+    // Asumimos PDF, pero podrías cambiarlo si quieres
     const media = {
       mimeType: 'application/pdf',
       body: buffer
