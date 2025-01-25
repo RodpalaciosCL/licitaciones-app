@@ -4,3 +4,11 @@
 
 [functions]
   node_bundler = "esbuild"
+
+# Estas líneas adicionales desactivan el procesamiento automático de formularios
+# y evitan que Netlify intente parsear subidas de archivos como si fueran forms.
+[build.processing]
+  skip_processing = true
+
+[build.processing.forms]
+  skip = true
