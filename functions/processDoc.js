@@ -1,21 +1,21 @@
-// functions/processDoc.js
-
 const { google } = require('googleapis');
-const fetch = require('node-fetch'); // usamos node-fetch para llamadas HTTP
+const fetch = require('node-fetch');
+const pdf = require('pdf-parse'); // Librería para procesar PDFs
 
 exports.handler = async (event) => {
+  console.log('Invocando processDoc...');
   try {
-    // Aceptamos solo POST
     if (event.httpMethod !== 'POST') {
+      console.log('Método no permitido');
       return {
         statusCode: 405,
-        body: 'Método no permitido, usa POST'
+        body: 'Método no permitido, usa POST.'
       };
     }
 
-    // Recibimos { fileId }
     const { fileId } = JSON.parse(event.body || '{}');
     if (!fileId) {
+      console.log('Faltan parámetros: fileId');
       return {
         statusCode: 400,
         body: JSON.stringify({
@@ -25,27 +25,34 @@ exports.handler = async (event) => {
       };
     }
 
-    // 1) Autenticar con Drive
+    console.log(`Recibido fileId: ${fileId}`);
+
+    // Autenticación con Google Drive
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
       scopes: ['https://www.googleapis.com/auth/drive']
     });
     const drive = google.drive({ version: 'v3', auth });
 
-    // 2) Exportar el PDF a texto
-    //    Esto SÓLO funciona bien si el PDF es "nativo" (no escaneado).
-    //    https://developers.google.com/drive/api/v3/reference/files/export
-    const res = await drive.files.export(
-      { fileId, mimeType: 'text/plain' },
-      { responseType: 'arraybuffer' }
+    // Descargar el archivo desde Drive
+    console.log('Descargando archivo desde Google Drive...');
+    const response = await drive.files.get(
+      { fileId, alt: 'media' },
+      { responseType: 'arraybuffer' } // Descargar como ArrayBuffer
     );
-    const arrayBuffer = res.data;
-    // Convertimos el ArrayBuffer a string (texto)
-    const text = Buffer.from(arrayBuffer).toString('utf-8');
 
-    // 3) Llamar a la API de OpenAI
-    //    Usamos process.env.OPENAI_API_KEY
-    //    Modelo: text-davinci-003 (puedes cambiar a gpt-3.5-turbo con otro endpoint)
+    const arrayBuffer = response.data;
+
+    // Procesar el archivo PDF con pdf-parse
+    console.log('Procesando el PDF con pdf-parse...');
+    const pdfData = await pdf(Buffer.from(arrayBuffer));
+    const text = pdfData.text;
+
+    console.log('Texto extraído del PDF:');
+    console.log(text);
+
+    // Enviar el texto a OpenAI
+    console.log('Enviando el texto extraído a OpenAI...');
     const prompt = `Analiza este texto de licitación y devuélveme:
     - Resumen
     - Aspectos clave
@@ -76,7 +83,7 @@ exports.handler = async (event) => {
     }
     const gptText = gptData.choices[0].text.trim();
 
-    // 4) Devolver la respuesta de GPT
+    console.log('Respuesta de GPT recibida.');
     return {
       statusCode: 200,
       body: JSON.stringify({
