@@ -7,8 +7,9 @@
   <body>
     <h1>Prueba de Subida a Drive</h1>
 
-    <!-- Sin <form> -->
+    <!-- Importante: NO usar <form>. Evitamos submit. -->
     <input type="file" id="fileInput" />
+    <!-- El botón con type="button" para que no haga un form-submit -->
     <button type="button" onclick="uploadFile()">Subir y Procesar</button>
 
     <div id="result"></div>
@@ -21,10 +22,10 @@
           return;
         }
 
-        // Convertir a base64
+        // Convertir el archivo a base64
         const base64 = await fileToBase64(file);
 
-        // Enviar en formato JSON
+        // Hacer el fetch con JSON
         const resp = await fetch('/.netlify/functions/uploadToDrive', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -34,6 +35,7 @@
           })
         });
 
+        // Manejar la respuesta
         const data = await resp.json();
         if (data.success) {
           document.getElementById('result').innerText =
@@ -44,11 +46,13 @@
         }
       }
 
+      // Función para leer el archivo y pasarlo a base64
       function fileToBase64(file) {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => {
             const dataUrl = reader.result;
+            // "data:<mime>;base64,AAAA..."
             const base64 = dataUrl.split(',')[1];
             resolve(base64);
           };
