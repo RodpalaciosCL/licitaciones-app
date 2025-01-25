@@ -1,6 +1,5 @@
 // netlify/functions/processDoc.js
-// Descarga el PDF de Drive, extrae texto con pdf-parse, llama a GPT
-// Devuelve en la respuesta JSON: bufferLength, textLength, y más.
+// Descarga el PDF de Drive, extrae texto con pdf-parse, llama a GPT, y retorna logs en el JSON.
 
 const { google } = require('googleapis');
 const fetch = require('node-fetch');
@@ -8,7 +7,7 @@ const pdfParse = require('pdf-parse');
 
 exports.handler = async (event) => {
   try {
-    // Aceptar solo POST
+    // Solo POST
     if (event.httpMethod !== 'POST') {
       return {
         statusCode: 405,
@@ -38,24 +37,22 @@ exports.handler = async (event) => {
     });
     const drive = google.drive({ version: 'v3', auth });
 
-    // 3. Descargar el PDF desde Drive
+    // 3. Descargar PDF desde Drive
     const response = await drive.files.get(
       { fileId, alt: 'media' },
       { responseType: 'arraybuffer' }
     );
 
-    // 4. Crear el buffer
+    // 4. Buffer del PDF
     const pdfBuffer = Buffer.from(response.data);
-
-    // 5. Loguear la longitud del PDF
     const bufferLength = pdfBuffer.length;
 
-    // 6. Parsear con pdf-parse
+    // 5. Extraer texto con pdf-parse
     const pdfData = await pdfParse(pdfBuffer);
     const text = pdfData.text;
     const textLength = text.length;
 
-    // 7. Llamar a OpenAI
+    // 6. Llamar a GPT
     const prompt = `
       Analiza este texto de licitación y devuélveme:
       - Resumen
@@ -67,7 +64,6 @@ exports.handler = async (event) => {
       Texto:
       ${text}
     `;
-
     const gptResponse = await fetch('https://api.openai.com/v1/completions', {
       method: 'POST',
       headers: {
@@ -88,19 +84,18 @@ exports.handler = async (event) => {
     }
     const gptText = gptData.choices[0].text.trim();
 
-    // 8. Devolver toda la info en el body JSON
+    // 7. Respuesta final con logs
     return {
       statusCode: 200,
       body: JSON.stringify({
         success: true,
-        bufferLength,  // Tamaño del PDF en bytes
-        textLength,    // Tamaño del texto extraído
+        bufferLength,
+        textLength,
         rawGPT: gptText
       })
     };
 
   } catch (error) {
-    // Si algo falla, devolvemos el error y stack
     return {
       statusCode: 500,
       body: JSON.stringify({
