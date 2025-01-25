@@ -19,32 +19,32 @@ exports.handler = async (event) => {
       "licita-personal@licita-448900.iam.gserviceaccount.com",
       null,
       `-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BA...
+MIIEvgIBADANBgk...
 -----END PRIVATE KEY-----
 `,
       ["https://www.googleapis.com/auth/drive.readonly"]
     );
 
-    // Obtenemos el PDF desde Drive
+    // Obtener PDF de Drive
     const drive = google.drive({ version: "v3", auth });
     const response = await drive.files.get(
       { fileId, alt: "media" },
       { responseType: "arraybuffer" }
     );
 
-    // Convertimos el ArrayBuffer a Buffer
+    // Convertir ArrayBuffer a Buffer
     const pdfBuffer = Buffer.from(response.data);
 
-    // Extraemos texto usando pdf2json
+    // Extraer texto con pdf2json
     const extractedText = await parsePdfWithPdf2Json(pdfBuffer);
 
-    // Configuramos OpenAI
+    // Configurar OpenAI
     const configuration = new Configuration({
       apiKey: "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",
     });
     const openai = new OpenAIApi(configuration);
 
-    // Pedimos resumen a GPT
+    // Pedir resumen a GPT
     const gptResponse = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
       messages: [
@@ -59,7 +59,7 @@ MIIEvgIBADANBgkqhkiG9w0BA...
       statusCode: 200,
       body: JSON.stringify({
         mensaje: "Procesado con éxito",
-        resumen
+        resumen,
       }),
     };
   } catch (error) {
@@ -70,19 +70,14 @@ MIIEvgIBADANBgkqhkiG9w0BA...
   }
 };
 
-// Helper para parsear con pdf2json
 function parsePdfWithPdf2Json(pdfBuffer) {
   return new Promise((resolve, reject) => {
     const pdfParser = new PDFParser();
-    pdfParser.on("pdfParser_dataError", (errData) =>
-      reject(errData.parserError)
-    );
+    pdfParser.on("pdfParser_dataError", (errData) => reject(errData.parserError));
     pdfParser.on("pdfParser_dataReady", () => {
-      // getRawTextContent() devuelve el texto extraído
       const rawText = pdfParser.getRawTextContent();
       resolve(rawText);
     });
-
     pdfParser.parseBuffer(pdfBuffer);
   });
 }
