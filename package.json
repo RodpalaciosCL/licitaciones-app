@@ -6,7 +6,7 @@
     "start": "echo \"No local dev\""
   },
   "dependencies": {
-    "googleapis": "^145.0.0",
+    "googleapis": "^118.0.0",
     "pdf-parse": "^1.1.1",
     "openai": "^3.2.1"
   }
