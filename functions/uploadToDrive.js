@@ -9,6 +9,7 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // Leer JSON { filename, fileContent }
     const { filename, fileContent } = JSON.parse(event.body || '{}');
     if (!filename || !fileContent) {
       return {
@@ -17,33 +18,37 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Autenticarnos con Drive usando Service Account
+    // Autenticar con la Service Account
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
       scopes: ['https://www.googleapis.com/auth/drive']
     });
     const drive = google.drive({ version: 'v3', auth });
 
-    // Convertir la cadena base64 a Buffer
+    // Convertir base64 a Buffer
     const buffer = Buffer.from(fileContent, 'base64');
 
-    // Metadata del archivo
-    const fileMetadata = { name: filename };
+    // Armar metadata
+    const requestBody = {
+      name: filename,
+    };
     if (process.env.GOOGLE_FOLDER_ID) {
-      fileMetadata.parents = [process.env.GOOGLE_FOLDER_ID];
+      requestBody.parents = [process.env.GOOGLE_FOLDER_ID];
     }
 
-    // Asumimos PDF, pero podrías cambiarlo si quieres
+    // Definir media
     const media = {
       mimeType: 'application/pdf',
       body: buffer
     };
 
-    // Subir el archivo a Drive
+    // IMPORTANTE: forzar uploadType: 'media'
     const response = await drive.files.create({
-      resource: fileMetadata,
+      requestBody,
       media,
-      fields: 'id, webViewLink'
+      fields: 'id, webViewLink',
+      // Con esto evitamos multipart y vamos a upload "media" puro
+      uploadType: 'media'
     });
 
     const fileId = response.data.id;
@@ -61,10 +66,7 @@ exports.handler = async (event, context) => {
     console.error('Error subiendo archivo:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: error.message
-      })
+      body: JSON.stringify({ success: false, error: error.message })
     };
   }
 };
