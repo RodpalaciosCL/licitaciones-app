@@ -1,0 +1,11 @@
+{
+  "name": "licitaciones-app",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "echo \"Sin proceso de build\"",
+    "start": "echo \"No local dev\""
+  },
+  "dependencies": {
+    "googleapis": "^105.0.0"
+  }
+}
