@@ -1,12 +1,12 @@
 // netlify/functions/processDoc.js
 
 const { google } = require("googleapis");
-const pdfParse = require("pdf-parse");
+const PDFParser = require("pdf2json");
 const { Configuration, OpenAIApi } = require("openai");
 
 exports.handler = async (event) => {
   try {
-    // 1. Tomamos el fileId de la query
+    // 1. Obtenemos fileId
     const { fileId } = event.queryStringParameters || {};
     if (!fileId) {
       return {
@@ -15,39 +15,38 @@ exports.handler = async (event) => {
       };
     }
 
-    // 2. Autenticación con Google (tu service account)
+    // 2. Autenticación con Google
     const auth = new google.auth.JWT(
       "licita-personal@licita-448900.iam.gserviceaccount.com",
       null,
-      // Tu clave privada completa, con BEGIN/END, y reemplazando \n si hace falta
+      // Pega tu Private Key completa entre comillas invertidas
       `-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BA...
+MIIEvgIBADANBgk...
 -----END PRIVATE KEY-----
 `,
       ["https://www.googleapis.com/auth/drive.readonly"]
     );
 
-    // 3. Descargamos el archivo desde Drive
+    // 3. Descarga el PDF como stream
     const drive = google.drive({ version: "v3", auth });
     const response = await drive.files.get(
       { fileId, alt: "media" },
-      { responseType: "stream" }
+      { responseType: "arraybuffer" }
     );
 
-    // 4. Convertimos el stream a buffer
-    const pdfBuffer = await streamToBuffer(response.data);
+    // 4. Conviértelo a Buffer
+    const pdfBuffer = Buffer.from(response.data);
 
-    // 5. Extraemos texto del PDF usando pdf-parse (no más rutas locales)
-    const pdfData = await pdfParse(pdfBuffer);
-    const extractedText = pdfData.text;
+    // 5. Extrae el texto con pdf2json
+    const extractedText = await parsePdfWithPdf2Json(pdfBuffer);
 
-    // 6. Configuramos OpenAI
+    // 6. Configura OpenAI
     const configuration = new Configuration({
       apiKey: "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",
     });
     const openai = new OpenAIApi(configuration);
 
-    // 7. Pedimos a GPT el resumen
+    // 7. Pide resumen a GPT
     const gptResponse = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
       messages: [
@@ -57,13 +56,10 @@ MIIEvgIBADANBgkqhkiG9w0BA...
     });
     const resumen = gptResponse.data.choices[0].message.content.trim();
 
-    // 8. Enviamos JSON con el resultado
+    // 8. Retorna JSON
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        mensaje: "Procesado con éxito",
-        resumen
-      })
+      body: JSON.stringify({ mensaje: "Procesado con éxito", resumen }),
     };
   } catch (error) {
     return {
@@ -73,11 +69,21 @@ MIIEvgIBADANBgkqhkiG9w0BA...
   }
 };
 
-function streamToBuffer(stream) {
+// Helper para pdf2json
+function parsePdfWithPdf2Json(pdfBuffer) {
   return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on("data", (chunk) => chunks.push(chunk));
-    stream.on("end", () => resolve(Buffer.concat(chunks)));
-    stream.on("error", (err) => reject(err));
+    const pdfParser = new PDFParser();
+
+    pdfParser.on("pdfParser_dataError", (errData) =>
+      reject(errData.parserError)
+    );
+    pdfParser.on("pdfParser_dataReady", () => {
+      // getRawTextContent() devuelve el texto concatenado
+      const rawText = pdfParser.getRawTextContent();
+      resolve(rawText);
+    });
+
+    // Inicia el parse
+    pdfParser.parseBuffer(pdfBuffer);
   });
 }
