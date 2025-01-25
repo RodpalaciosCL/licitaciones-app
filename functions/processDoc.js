@@ -14,7 +14,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Autenticación con Google
     const auth = new google.auth.JWT(
       "licita-personal@licita-448900.iam.gserviceaccount.com",
       null,
@@ -25,26 +24,20 @@ MIIEvgIBADANBgk...
       ["https://www.googleapis.com/auth/drive.readonly"]
     );
 
-    // Obtener PDF de Drive
     const drive = google.drive({ version: "v3", auth });
     const response = await drive.files.get(
       { fileId, alt: "media" },
       { responseType: "arraybuffer" }
     );
 
-    // Convertir ArrayBuffer a Buffer
     const pdfBuffer = Buffer.from(response.data);
-
-    // Extraer texto con pdf2json
     const extractedText = await parsePdfWithPdf2Json(pdfBuffer);
 
-    // Configurar OpenAI
     const configuration = new Configuration({
-      apiKey: "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",
+      apiKey: "sk-proj-...",
     });
     const openai = new OpenAIApi(configuration);
 
-    // Pedir resumen a GPT
     const gptResponse = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
       messages: [
