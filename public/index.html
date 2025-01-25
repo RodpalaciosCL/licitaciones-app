@@ -2,19 +2,21 @@
 <html>
   <head>
     <meta charset="utf-8"/>
-    <title>Prueba de Subida a Drive</title>
+    <title>Subir y Analizar Licitación</title>
   </head>
   <body>
-    <h1>Prueba de Subida a Drive</h1>
+    <h1>Prueba de Subida y Análisis de Licitación</h1>
 
-    <!-- Importante: NO usar <form>. Evitamos submit. -->
     <input type="file" id="fileInput" />
-    <!-- El botón con type="button" para que no haga un form-submit -->
     <button type="button" onclick="uploadFile()">Subir y Procesar</button>
+
+    <button type="button" onclick="analizarDoc()">Analizar Licitación (GPT)</button>
 
     <div id="result"></div>
 
     <script>
+      let lastFileId = null;
+
       async function uploadFile() {
         const file = document.getElementById('fileInput').files[0];
         if (!file) {
@@ -22,10 +24,10 @@
           return;
         }
 
-        // Convertir el archivo a base64
+        // Convertimos a base64
         const base64 = await fileToBase64(file);
 
-        // Hacer el fetch con JSON
+        // Llamamos a uploadToDrive
         const resp = await fetch('/.netlify/functions/uploadToDrive', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -35,9 +37,10 @@
           })
         });
 
-        // Manejar la respuesta
         const data = await resp.json();
         if (data.success) {
+          // Guardamos el fileId para usarlo luego
+          lastFileId = data.fileId;
           document.getElementById('result').innerText =
             `Archivo subido con ID: ${data.fileId}\n` +
             `Link de vista: ${data.viewLink}`;
@@ -46,13 +49,114 @@
         }
       }
 
-      // Función para leer el archivo y pasarlo a base64
+      async function analizarDoc() {
+        if (!lastFileId) {
+          alert('Primero sube un PDF para obtener el fileId');
+          return;
+        }
+        // Llamamos a processDoc.js para extraer texto y GPT
+        const resp = await fetch('/.netlify/functions/processDoc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileId: lastFileId })
+        });
+        const result = await resp.json();
+        if (result.success) {
+          document.getElementById('result').innerText = result.rawGPT;
+        } else {
+          document.getElementById('result').innerText = 'Error: ' + result.error;
+        }
+      }
+
+      // Helper para convertir file -> base64
       function fileToBase64(file) {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => {
             const dataUrl = reader.result;
-            // "data:<mime>;base64,AAAA..."
+            const base64 = dataUrl.split(',')[1];
+            resolve(base64);
+          };
+          reader.onerror = error => reject
+
+```html
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Subir y Analizar Licitación</title>
+  </head>
+  <body>
+    <h1>Prueba de Subida y Análisis de Licitación</h1>
+
+    <input type="file" id="fileInput" />
+    <button type="button" onclick="uploadFile()">Subir y Procesar</button>
+
+    <button type="button" onclick="analizarDoc()">Analizar Licitación (GPT)</button>
+
+    <div id="result"></div>
+
+    <script>
+      let lastFileId = null;
+
+      async function uploadFile() {
+        const file = document.getElementById('fileInput').files[0];
+        if (!file) {
+          alert("Por favor, selecciona un archivo primero.");
+          return;
+        }
+
+        // Convertimos a base64
+        const base64 = await fileToBase64(file);
+
+        // Llamamos a uploadToDrive
+        const resp = await fetch('/.netlify/functions/uploadToDrive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name,
+            fileContent: base64
+          })
+        });
+
+        const data = await resp.json();
+        if (data.success) {
+          // Guardamos el fileId para usarlo luego
+          lastFileId = data.fileId;
+          document.getElementById('result').innerText =
+            `Archivo subido con ID: ${data.fileId}\n` +
+            `Link de vista: ${data.viewLink}`;
+        } else {
+          document.getElementById('result').innerText = `Error: ${data.error}`;
+        }
+      }
+
+      async function analizarDoc() {
+        if (!lastFileId) {
+          alert('Primero sube un PDF para obtener el fileId');
+          return;
+        }
+        // Llamamos a processDoc.js para extraer texto y GPT
+        const resp = await fetch('/.netlify/functions/processDoc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileId: lastFileId })
+        });
+        const result = await resp.json();
+        if (result.success) {
+          // Aquí mostramos el texto que GPT devuelva
+          document.getElementById('result').innerText = result.rawGPT;
+        } else {
+          document.getElementById('result').innerText = 'Error: ' + result.error;
+        }
+      }
+
+      // Helper para convertir file -> base64
+      function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result;
             const base64 = dataUrl.split(',')[1];
             resolve(base64);
           };
