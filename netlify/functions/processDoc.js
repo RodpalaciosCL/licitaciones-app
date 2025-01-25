@@ -14,23 +14,24 @@ exports.handler = async (event) => {
       };
     }
 
+    // Descarga el PDF
     const pdfResponse = await fetch(directUrl);
     if (!pdfResponse.ok) {
-      throw new Error(
-        `No se pudo descargar el PDF: ${pdfResponse.status} ${pdfResponse.statusText}`
-      );
+      throw new Error(`No se pudo descargar el PDF: ${pdfResponse.status} ${pdfResponse.statusText}`);
     }
-
     const pdfBuffer = await pdfResponse.buffer();
 
+    // Parsear con pdf-parse
     const pdfData = await pdfParse(pdfBuffer);
     const extractedText = pdfData.text;
 
+    // OpenAI
     const configuration = new Configuration({
-      apiKey: "sk-proj-...", 
+      apiKey: "sk-proj-v9T...",
     });
     const openai = new OpenAIApi(configuration);
 
+    // Resumen GPT
     const gptResponse = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
       messages: [
@@ -50,6 +51,7 @@ exports.handler = async (event) => {
         resumen,
       }),
     };
+
   } catch (error) {
     return {
       statusCode: 500,
