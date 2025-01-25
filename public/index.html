@@ -16,6 +16,7 @@
   <script>
     let lastFileId = null;
 
+    // 1. Función para subir el PDF a Drive
     async function uploadFile() {
       const file = document.getElementById('fileInput').files[0];
       if (!file) {
@@ -23,10 +24,10 @@
         return;
       }
 
-      // 1. Convertir a Base64
+      // Convertir a Base64
       const base64 = await fileToBase64(file);
 
-      // 2. Llamar a la function uploadToDrive
+      // Llamar a la función uploadToDrive
       const resp = await fetch('/.netlify/functions/uploadToDrive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -40,23 +41,25 @@
       console.log('[uploadFile] Respuesta:', data);
 
       if (data.success) {
-        lastFileId = data.fileId; // Guardamos el fileId para usarlo luego
+        // Guardar el fileId para usarlo luego en "Analizar Licitación"
+        lastFileId = data.fileId; 
         document.getElementById('result').innerText =
           `Archivo subido con ID: ${data.fileId}\n`;
-          // Si quisieras reintroducir logs, podrías: + `Carpeta: ${data.logs?.usedFolderId}\n` ...
       } else {
+        // MOSTRAR ERROR y stacktrace
         document.getElementById('result').innerText = `Error al subir: ${data.error}`;
-        console.error('Stack trace:', data.stack);
+        console.error('Upload error stack:', data.stack);
       }
     }
 
+    // 2. Función para analizar el PDF con GPT
     async function analizarLicitacion() {
       if (!lastFileId) {
-        alert('Primero sube un archivo.');
+        alert('Primero sube un archivo antes de analizar.');
         return;
       }
 
-      // 3. Llamar a la function processDoc con el fileId
+      // Llamar a la función processDoc
       const resp = await fetch('/.netlify/functions/processDoc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,21 +67,24 @@
       });
 
       const result = await resp.json();
+      console.log('[analizarLicitacion] Respuesta:', result);
+
       if (result.success) {
         document.getElementById('result').innerText = result.rawGPT;
       } else {
+        // MOSTRAR ERROR y stacktrace
         document.getElementById('result').innerText = `Error al procesar: ${result.error}`;
-        console.error('Stack trace:', result.stack);
+        console.error('ProcessDoc error stack:', result.stack);
       }
     }
 
-    // Función auxiliar para convertir un File a base64
+    // 3. Función auxiliar para convertir un File a base64
     function fileToBase64(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
-          // reader.result es algo como: "data:application/pdf;base64,JVBER..."
-          // Partimos la coma y tomamos la parte base64
+          // reader.result es algo como: "data:application/pdf;base64,JVBERi0xLjQK..."
+          // Separamos tras la coma y tomamos la parte base64
           const base64 = reader.result.split(',')[1];
           resolve(base64);
         };
