@@ -1,12 +1,9 @@
-// netlify/functions/processDoc.js
-// =================================
-
 const { google } = require('googleapis');
 const pdfParse = require('pdf-parse'); // Asegúrate de tener "pdf-parse": "^1.1.1" en tu package.json
 
 exports.handler = async (event, context) => {
   try {
-    // 1. Obtener el fileId de la querystring (por ej: ?fileId=abcdefg)
+    // 1. Obtener el fileId de la querystring (por ej: ?fileId=xxxxxx)
     const fileId = event.queryStringParameters.fileId;
     if (!fileId) {
       return {
@@ -18,8 +15,10 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 2. Cargar credenciales de la variable de entorno
-    //    (GOOGLE_SERVICE_ACCOUNT_JSON debe contener el JSON de tu Service Account)
+    // 2. Log para verificar el fileId recibido
+    console.log('>> processDoc.js: fileId recibido:', fileId);
+
+    // 3. Cargar credenciales de la variable de entorno
     const serviceAccountJSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (!serviceAccountJSON) {
       return {
@@ -45,14 +44,14 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 3. Autenticar con Google Drive usando googleapis
+    // 4. Autenticar con Google Drive usando googleapis
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/drive'],
     });
     const drive = google.drive({ version: 'v3', auth });
 
-    // 4. Descargar el contenido del PDF (alt: 'media')
+    // 5. Descargar el contenido del PDF (alt: 'media')
     let fileData;
     try {
       const response = await drive.files.get(
@@ -61,7 +60,6 @@ exports.handler = async (event, context) => {
       );
       fileData = response.data;
     } catch (downloadErr) {
-      // Podría ser un 403 (Forbidden) si no hay permisos, o 404 si no existe el fileId
       return {
         statusCode: 500,
         body: JSON.stringify({
@@ -72,10 +70,10 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 5. Convertir el arraybuffer a Buffer
+    // 6. Convertir el arraybuffer a Buffer
     const buffer = Buffer.from(fileData);
 
-    // 6. Log para ver el tamaño del PDF en bytes
+    // 7. Log para ver el tamaño del PDF en bytes
     console.log('>> processDoc.js: buffer.length =', buffer.length);
 
     // Opcional: si quieres mandar ese valor en la respuesta
@@ -90,7 +88,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 7. Parsear el PDF con pdf-parse
+    // 8. Parsear el PDF con pdf-parse
     let parsedPDF;
     try {
       parsedPDF = await pdfParse(buffer);
@@ -105,24 +103,18 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 8. Extraemos algo de información del PDF
+    // 9. Extraemos algo de información del PDF
     const extractedText = parsedPDF.text || '';
     const textLength = extractedText.length;
 
-    // (Opcional) Aquí podrías llamar a GPT con extractedText si ya tienes la lógica
-    // const gptResponse = await callGPT_API({ prompt: extractedText });
-    // ...
-
-    // 9. Retornar un JSON con info útil
+    // 10. Retornar un JSON con info útil
     return {
       statusCode: 200,
       body: JSON.stringify({
         success: true,
         bufferLength: buffer.length,
         textLength: textLength,
-        // excerpt: un recorte de texto, si gustas
-        excerpt: extractedText.slice(0, 200), // Por ejemplo, los primeros 200 chars
-        // rawGPT: gptResponse,
+        excerpt: extractedText.slice(0, 200), // Los primeros 200 caracteres del texto extraído
       }),
     };
   } catch (err) {
