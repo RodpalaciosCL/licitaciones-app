@@ -1,25 +1,25 @@
-// processDoc.js
+// netlify/functions/processDoc.js
+// Esta función recibe "fileId" de un PDF en Google Drive,
+// lo descarga, lo parsea y lo envía a GPT para obtener el resumen.
 
 const { google } = require('googleapis');
 const fetch = require('node-fetch');
-const pdf = require('pdf-parse');
+const pdfParse = require('pdf-parse');
 
 exports.handler = async (event) => {
   console.log('Invocando processDoc...');
   try {
-    // Solo aceptar peticiones POST
+    // Solo aceptamos POST
     if (event.httpMethod !== 'POST') {
-      console.log('Método no permitido');
       return {
         statusCode: 405,
-        body: 'Método no permitido, usa POST.'
+        body: 'Método no permitido. Usa POST.'
       };
     }
 
-    // Obtener el fileId desde el cuerpo de la petición
+    // Leer "fileId" desde el body
     const { fileId } = JSON.parse(event.body || '{}');
     if (!fileId) {
-      console.log('Faltan parámetros: fileId');
       return {
         statusCode: 400,
         body: JSON.stringify({
@@ -28,47 +28,48 @@ exports.handler = async (event) => {
         })
       };
     }
-
     console.log(`Recibido fileId: ${fileId}`);
 
-    // Autenticación con Google Drive
+    // Autenticación con Google
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
       scopes: ['https://www.googleapis.com/auth/drive']
     });
-
     const drive = google.drive({ version: 'v3', auth });
 
-    console.log('Descargando archivo desde Google Drive...');
-    // Descargar el PDF como arraybuffer
+    // Descargar el PDF desde Drive
+    console.log('Descargando PDF desde Drive...');
     const response = await drive.files.get(
-      { fileId, alt: 'media' },
-      { responseType: 'arraybuffer' }
+      {
+        fileId,
+        alt: 'media'
+      },
+      {
+        responseType: 'arraybuffer'
+      }
     );
 
-    console.log('Archivo descargado con éxito.');
-    const arrayBuffer = response.data;
-
-    console.log('Procesando el PDF...');
-    // Parsear PDF desde buffer
-    const pdfData = await pdf(Buffer.from(arrayBuffer));
+    console.log('Descarga completada. Parseando PDF...');
+    const buffer = Buffer.from(response.data);
+    const pdfData = await pdfParse(buffer);
     const text = pdfData.text;
-    console.log('Texto extraído del PDF:');
-    console.log(text);
+    console.log('Texto extraído del PDF:\n', text);
 
-    console.log('Llamando a OpenAI...');
-    // Crear el prompt para GPT
-    const prompt = `Analiza este texto de licitación y devuélveme:
-    - Resumen
-    - Aspectos clave
-    - Documentación necesaria
-    - Fechas y montos importantes
-    - Lista de tareas a realizar
-    
-    Texto:
-    ${text}`;
+    // Crear prompt para GPT
+    const prompt = `
+      Analiza este texto de licitación y devuélveme:
+      - Resumen
+      - Aspectos clave
+      - Documentación necesaria
+      - Fechas y montos importantes
+      - Lista de tareas a realizar
 
-    // Llamar a OpenAI con fetch
+      Texto:
+      ${text}
+    `;
+
+    // Llamar a OpenAI
+    console.log('Invocando OpenAI...');
     const gptResponse = await fetch('https://api.openai.com/v1/completions', {
       method: 'POST',
       headers: {
@@ -90,7 +91,8 @@ exports.handler = async (event) => {
     }
     const gptText = gptData.choices[0].text.trim();
 
-    console.log('Respuesta de GPT recibida.');
+    console.log('Respuesta de GPT recibida con éxito.');
+
     return {
       statusCode: 200,
       body: JSON.stringify({
