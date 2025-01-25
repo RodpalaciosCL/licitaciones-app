@@ -1,9 +1,0 @@
-[build]
-  command = "npm run build"
-  publish = "public"
-  functions = "netlify/functions"
-
-[functions]
-  # Forzamos que use ZISI (no esbuild) y que no “empaque” esas librerías
-  node_bundler = "zisi"
-  external_node_modules = ["pdf-parse", "googleapis", "openai"]
