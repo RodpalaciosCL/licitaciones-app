@@ -2,8 +2,7 @@
   "name": "licitaciones-app",
   "version": "1.0.0",
   "scripts": {
-    "build": "echo \"Sin proceso de build\"",
-    "start": "echo \"No local dev\""
+    "build": "echo \"Sin proceso de build\""
   },
   "dependencies": {
     "googleapis": "^118.0.0",
