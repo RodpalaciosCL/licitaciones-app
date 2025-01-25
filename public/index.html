@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Subir documento a Drive - Netlify</title>
+  </head>
+  <body>
+    <h1>Prueba de Subida a Drive</h1>
+
+    <input type="file" id="fileInput" />
+    <button onclick="uploadFile()">Subir y Procesar</button>
+
+    <div id="result"></div>
+
+    <script>
+      async function uploadFile() {
+        const file = document.getElementById('fileInput').files[0];
+        if (!file) {
+          alert("Por favor, selecciona un archivo primero.");
+          return;
+        }
+
+        const base64 = await fileToBase64(file);
+        const resp = await fetch('/.netlify/functions/uploadToDrive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            filename: file.name, 
+            fileContent: base64 
+          })
+        });
+        
+        const data = await resp.json();
+        if (data.success) {
+          document.getElementById('result').innerText =
+            `Archivo subido con ID: ${data.fileId}\n` +
+            `Link de vista: ${data.viewLink}`;
+        } else {
+          document.getElementById('result').innerText = `Error: ${data.error}`;
+        }
+      }
+
+      function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result;
+            const base64 = dataUrl.split(',')[1];
+            resolve(base64);
+          };
+          reader.onerror = error => reject(error);
+          reader.readAsDataURL(file);
+        });
+      }
+    </script>
+  </body>
+</html>
