@@ -1,13 +1,13 @@
 // netlify/functions/uploadToDrive.js
 // Sube un PDF en base64 a Google Drive, dentro de la carpeta con ID "1PBLBzG0iVxvCIA0jjWGDTVfoJxJw3LcT".
-// Devuelve el fileId y unos logs en la misma respuesta.
+// Devuelve el fileId y unos logs en la misma respuesta (sin usar busboy).
 
 const { google } = require('googleapis');
 const { v4: uuidv4 } = require('uuid');
 
 exports.handler = async (event) => {
   try {
-    // Acepta solo POST
+    // Aceptamos solo POST
     if (event.httpMethod !== 'POST') {
       return {
         statusCode: 405,
@@ -15,14 +15,14 @@ exports.handler = async (event) => {
       };
     }
 
-    // 1. Parsear el body como JSON
+    // 1. Parsear el body como JSON (no multipart)
     const body = JSON.parse(event.body || '{}');
     const { filename, fileContent } = body;
 
     // Logs mínimos de depuración
-    console.log('uploadToDrive recibido:');
-    console.log('filename:', filename);
-    console.log('fileContent length:', fileContent ? fileContent.length : 0);
+    console.log('[uploadToDrive] recibido:');
+    console.log('  filename:', filename);
+    console.log('  fileContent length:', fileContent ? fileContent.length : 0);
 
     if (!fileContent) {
       return {
@@ -31,7 +31,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // 2. Convertir base64 a buffer
+    // 2. Convertir base64 a Buffer
     const fileBuffer = Buffer.from(fileContent, 'base64');
 
     // 3. Autenticarnos con Google Drive
@@ -42,13 +42,13 @@ exports.handler = async (event) => {
     const drive = google.drive({ version: 'v3', auth });
 
     // 4. Subir el archivo a la carpeta con ID "1PBLBzG0iVxvCIA0jjWGDTVfoJxJw3LcT"
-    //    Asegúrate de que la cuenta licita-personal@... tenga permisos de Editor en esa carpeta.
+    //    Asegúrate de que tu Service Account tenga permisos de Editor en esa carpeta.
     const folderId = '1PBLBzG0iVxvCIA0jjWGDTVfoJxJw3LcT';
     const uploadResponse = await drive.files.create({
       requestBody: {
         name: filename || `Documento-${uuidv4()}.pdf`,
         mimeType: 'application/pdf',
-        parents: [folderId]  // <--- Aquí se indica la carpeta
+        parents: [folderId]
       },
       media: {
         mimeType: 'application/pdf',
@@ -58,9 +58,9 @@ exports.handler = async (event) => {
 
     // 5. Obtener el fileId resultante
     const fileId = uploadResponse.data.id;
-    console.log('Archivo subido con éxito. fileId:', fileId);
+    console.log('[uploadToDrive] Subido con éxito. fileId:', fileId);
 
-    // 6. "Inyectar" logs en la respuesta (para verlos directamente en tu frontend)
+    // 6. Responder con logs inyectados (para verlos en el frontend sin entrar a Netlify logs)
     return {
       statusCode: 200,
       body: JSON.stringify({
