@@ -1,6 +1,6 @@
 // netlify/functions/processDoc.js
 // 1) Recibe fileId de un PDF en Google Drive
-// 2) Descarga y parsea el texto
+// 2) Descarga y parsea el texto con pdf-parse
 // 3) Llama a GPT (OpenAI) para generar un resumen
 
 const { google } = require('googleapis');
@@ -13,7 +13,7 @@ exports.handler = async (event) => {
     if (event.httpMethod !== 'POST') {
       return {
         statusCode: 405,
-        body: 'Método no permitido. Usa POST.'
+        body: JSON.stringify({ error: 'Method Not Allowed' })
       };
     }
 
@@ -50,7 +50,7 @@ exports.handler = async (event) => {
     const pdfData = await pdfParse(pdfBuffer);
     const text = pdfData.text;
 
-    console.log('[processDoc] Texto extraído:\n', text.slice(0, 200), '...'); // Loggea solo primeros 200 chars
+    console.log('[processDoc] Texto extraído:\n', text.slice(0, 200), '...');
 
     // Prompt para GPT
     const prompt = `
@@ -85,10 +85,11 @@ exports.handler = async (event) => {
     if (!gptData.choices || !gptData.choices.length) {
       throw new Error('GPT no devolvió texto');
     }
-
     const gptText = gptData.choices[0].text.trim();
+
     console.log('[processDoc] Respuesta GPT recibida con éxito.');
 
+    // Retornar la respuesta
     return {
       statusCode: 200,
       body: JSON.stringify({
@@ -98,11 +99,14 @@ exports.handler = async (event) => {
     };
   } catch (error) {
     console.error('Error en processDoc:', error);
+
+    // Inyectar stacktrace en la respuesta:
     return {
       statusCode: 500,
       body: JSON.stringify({
         success: false,
-        error: error.message
+        error: error.message,
+        stack: error.stack
       })
     };
   }
