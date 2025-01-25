@@ -5,7 +5,7 @@
     "build": "echo \"Sin proceso de build\""
   },
   "dependencies": {
-    "node-fetch": "^3.3.0",
+    "node-fetch": "2.6.7",
     "pdf-parse": "1.0.2",
     "openai": "^3.2.1"
   }
