@@ -1,12 +1,10 @@
+# netlify.toml en la raíz de tu proyecto
+
 [build]
+  command = "npm run build"
   publish = "public"
-  functions = "functions"
+  functions = "netlify/functions"
 
 [functions]
-  node_bundler = "esbuild"
-
-[build.processing]
-  skip_processing = true
-
-[build.processing.forms]
-  skip = true
+  node_bundler = "zisi"
+  external_node_modules = ["pdf2json", "googleapis", "openai"]
