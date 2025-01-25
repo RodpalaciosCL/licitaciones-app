@@ -8,6 +8,6 @@
   "dependencies": {
     "googleapis": "^118.0.0",
     "openai": "^3.2.1",
-    "pdf-parse": "1.0.7"
+    "pdf-parse": "1.0.2"
   }
 }
