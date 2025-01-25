@@ -1,12 +1,13 @@
-// netlify/functions/uploadFile.js
-// Esta función recibe un PDF (multipart/form-data) y lo sube a Google Drive.
-// Devuelve fileId del archivo subido.
+// netlify/functions/uploadToDrive.js
+// Esta función recibe un PDF en base64 (desde el frontend) y lo sube a Google Drive.
+// Luego, devuelve el fileId del archivo subido.
 
 const { google } = require('googleapis');
 const { v4: uuidv4 } = require('uuid');
 
-exports.handler = async (event, context) => {
+exports.handler = async (event) => {
   try {
+    // Solo aceptamos POST
     if (event.httpMethod !== 'POST') {
       return {
         statusCode: 405,
@@ -14,61 +15,70 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 1. Parsear el body. Como es multipart/form-data, puede que uses un paquete como 'busboy'.
-    //   - En tu repo actual, veo que usas "busboy" en el handler. Así que conserva esa lógica.
+    // 1. Parsear el body como JSON
+    const body = JSON.parse(event.body || '{}');
+    const { filename, fileContent } = body;
 
-    // NOTA IMPORTANTE:
-    // A continuación muestro un EJEMPLO simplificado que lee el archivo
-    // desde un "Body" en base64 (por ejemplo). Si tú ya tienes tu propia lógica con "busboy",
-    // reemplaza la parte de "leerArchivoBase64" por tu implementación actual.
-    
-    const body = JSON.parse(event.body || '{}'); 
-    // Asumiendo que estás mandando el PDF en base64 
-    // en un campo "fileBase64". Ajusta a tu realidad:
+    // Logs para depurar (aparecerán en los logs de Netlify, cuando estén disponibles)
+    console.log('uploadToDrive recibido:');
+    console.log('filename:', filename);
+    console.log('fileContent length:', fileContent ? fileContent.length : 0);
 
-    const fileBase64 = body.fileBase64;
-    if (!fileBase64) {
+    if (!fileContent) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'No file data provided' })
+        body: JSON.stringify({ error: 'No fileContent (base64) provided' })
       };
     }
 
-    // Convertir base64 a buffer
-    const fileBuffer = Buffer.from(fileBase64, 'base64');
+    // 2. Convertir base64 a buffer
+    const fileBuffer = Buffer.from(fileContent, 'base64');
 
-    // 2. Autenticarnos con Google Drive
+    // 3. Autenticarnos con Google Drive
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
       scopes: ['https://www.googleapis.com/auth/drive']
     });
     const drive = google.drive({ version: 'v3', auth });
 
-    // 3. Subir el archivo a Drive
-    // Opcionalmente, puedes poner 'parents: ["FOLDER_ID_AQUÍ"]' si deseas subirlo a una carpeta específica
-    const res = await drive.files.create({
+    // 4. Subir el archivo a Drive
+    //    (Puedes agregar 'parents: ["TU_FOLDER_ID"]' si quieres subirlo a una carpeta específica)
+    const uploadResponse = await drive.files.create({
       requestBody: {
-        name: `Documento-${uuidv4()}.pdf`,
+        name: filename || `Documento-${uuidv4()}.pdf`,
         mimeType: 'application/pdf',
-        // parents: ["TU_FOLDER_ID_SI_PROCEDE"]
+        // parents: ["TU_FOLDER_ID"]
       },
       media: {
         mimeType: 'application/pdf',
-        body: Buffer.from(fileBuffer)
+        body: fileBuffer
       }
     });
 
-    const fileId = res.data.id;
+    const fileId = uploadResponse.data.id;
+    console.log('Archivo subido con éxito. fileId:', fileId);
 
+    // Opcional: crear un "viewLink" si quieres devolver un enlace de Drive (hay que setear permisos)
+    // const permission = await drive.permissions.create({
+    //   fileId,
+    //   requestBody: {
+    //     role: 'reader',
+    //     type: 'anyone'
+    //   }
+    // });
+    // const viewLink = `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+
+    // 5. Responder con el fileId (y opcionalmente viewLink)
     return {
       statusCode: 200,
       body: JSON.stringify({
         success: true,
         fileId
+        // , viewLink
       })
     };
   } catch (error) {
-    console.error('Error en uploadFile:', error);
+    console.error('Error en uploadToDrive:', error);
     return {
       statusCode: 500,
       body: JSON.stringify({ error: error.message })
