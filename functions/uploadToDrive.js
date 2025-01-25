@@ -1,36 +1,42 @@
 const { google } = require('googleapis');
+const { PassThrough } = require('stream');
 
 exports.handler = async (event) => {
+  console.log('Invocando uploadToDrive...');
   try {
     if (event.httpMethod !== 'POST') {
+      console.log('Método no permitido');
       return {
         statusCode: 405,
-        body: 'Método no permitido (usa POST).'
+        body: 'Método no permitido, usa POST.'
       };
     }
 
     const { filename, fileContent } = JSON.parse(event.body || '{}');
     if (!filename || !fileContent) {
+      console.log('Faltan parámetros: filename o fileContent');
       return {
         statusCode: 400,
         body: JSON.stringify({
           success: false,
-          error: 'Faltan parámetros'
+          error: 'Faltan parámetros (filename o fileContent).'
         })
       };
     }
 
-    // Autenticar con la Service Account
+    console.log(`Recibido archivo: ${filename}`);
+
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
       scopes: ['https://www.googleapis.com/auth/drive']
     });
+
     const drive = google.drive({ version: 'v3', auth });
 
-    // Convertir base64 a Buffer
     const buffer = Buffer.from(fileContent, 'base64');
+    const pass = new PassThrough();
+    pass.end(buffer);
 
-    // Crear metadata del archivo
     const requestBody = { name: filename };
     if (process.env.GOOGLE_FOLDER_ID) {
       requestBody.parents = [process.env.GOOGLE_FOLDER_ID];
@@ -38,38 +44,32 @@ exports.handler = async (event) => {
 
     const media = {
       mimeType: 'application/pdf',
-      body: buffer
+      body: pass
     };
 
-    // Subir el archivo a Drive
+    console.log('Subiendo archivo a Google Drive...');
     const response = await drive.files.create({
       requestBody,
       media,
       fields: 'id, webViewLink'
+    }, {
+      params: { uploadType: 'media' }
     });
 
+    console.log('Archivo subido exitosamente.');
     const fileId = response.data.id;
     const webViewLink = response.data.webViewLink;
 
-    // HACER EL ARCHIVO PÚBLICO
+    console.log('Haciendo público el archivo...');
     await drive.permissions.create({
       fileId,
       requestBody: {
-        role: 'reader',  // Permitir solo lectura
-        type: 'anyone'   // Hacerlo accesible a cualquiera con el link
+        role: 'reader',
+        type: 'anyone'
       }
     });
 
-    // Opcional: Compartir con un correo específico
-    // await drive.permissions.create({
-    //   fileId,
-    //   requestBody: {
-    //     role: 'reader',        // Solo lectura
-    //     type: 'user',          // Usuario específico
-    //     emailAddress: 'white.and.white@gmail.com' // Cambia este correo si lo necesitas
-    //   }
-    // });
-
+    console.log(`Archivo público: ${webViewLink}`);
     return {
       statusCode: 200,
       body: JSON.stringify({
@@ -79,12 +79,13 @@ exports.handler = async (event) => {
       })
     };
   } catch (error) {
-    console.error('Error subiendo archivo:', error);
+    console.error('Error detallado en uploadToDrive:', error);
     return {
       statusCode: 500,
       body: JSON.stringify({
         success: false,
-        error: error.message
+        error: error.message,
+        stack: error.stack
       })
     };
   }
