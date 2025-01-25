@@ -1,9 +1,7 @@
 const { google } = require('googleapis');
-const { PassThrough } = require('stream');
 
 exports.handler = async (event) => {
   try {
-    // Solo aceptamos método POST
     if (event.httpMethod !== 'POST') {
       return {
         statusCode: 405,
@@ -11,7 +9,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Parseamos el body JSON
     const { filename, fileContent } = JSON.parse(event.body || '{}');
     if (!filename || !fileContent) {
       return {
@@ -23,55 +20,56 @@ exports.handler = async (event) => {
       };
     }
 
-    // Autenticarnos con la Service Account
+    // Autenticar con la Service Account
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
       scopes: ['https://www.googleapis.com/auth/drive']
     });
     const drive = google.drive({ version: 'v3', auth });
 
-    // Convertir la cadena base64 en un buffer
+    // Convertir base64 a Buffer
     const buffer = Buffer.from(fileContent, 'base64');
 
-    // Creamos un Stream a partir del buffer
-    const pass = new PassThrough();
-    pass.end(buffer);
-
-    // Armamos la metadata (requestBody)
-    const requestBody = {
-      name: filename
-    };
-    // Si definimos carpeta en variable de entorno, la usamos
+    // Crear metadata del archivo
+    const requestBody = { name: filename };
     if (process.env.GOOGLE_FOLDER_ID) {
       requestBody.parents = [process.env.GOOGLE_FOLDER_ID];
     }
 
-    // Creamos el objeto 'media' con mimeType y el stream
     const media = {
       mimeType: 'application/pdf',
-      body: pass
+      body: buffer
     };
 
-    // Hacemos la llamada a drive.files.create con un segundo argumento “params”
-    // forzando uploadType: 'media' para evitar multipart
-    const response = await drive.files.create(
-      {
-        requestBody,
-        media,
-        fields: 'id, webViewLink'
-      },
-      {
-        params: {
-          uploadType: 'media'
-        }
-      }
-    );
+    // Subir el archivo a Drive
+    const response = await drive.files.create({
+      requestBody,
+      media,
+      fields: 'id, webViewLink'
+    });
 
-    // Obtenemos ID y link
     const fileId = response.data.id;
-    const webViewLink = response.data.webViewLink || '';
+    const webViewLink = response.data.webViewLink;
 
-    // Devolvemos éxito
+    // HACER EL ARCHIVO PÚBLICO
+    await drive.permissions.create({
+      fileId,
+      requestBody: {
+        role: 'reader',  // Permitir solo lectura
+        type: 'anyone'   // Hacerlo accesible a cualquiera con el link
+      }
+    });
+
+    // Opcional: Compartir con un correo específico
+    // await drive.permissions.create({
+    //   fileId,
+    //   requestBody: {
+    //     role: 'reader',        // Solo lectura
+    //     type: 'user',          // Usuario específico
+    //     emailAddress: 'white.and.white@gmail.com' // Cambia este correo si lo necesitas
+    //   }
+    // });
+
     return {
       statusCode: 200,
       body: JSON.stringify({
