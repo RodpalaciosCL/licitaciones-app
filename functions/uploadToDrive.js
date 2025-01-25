@@ -1,4 +1,5 @@
 const { google } = require('googleapis');
+const { PassThrough } = require('stream');
 
 exports.handler = async (event, context) => {
   try {
@@ -9,7 +10,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Leer JSON { filename, fileContent }
     const { filename, fileContent } = JSON.parse(event.body || '{}');
     if (!filename || !fileContent) {
       return {
@@ -18,7 +18,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Autenticar con la Service Account
+    // Autenticar con Service Account
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
       scopes: ['https://www.googleapis.com/auth/drive']
@@ -28,27 +28,27 @@ exports.handler = async (event, context) => {
     // Convertir base64 a Buffer
     const buffer = Buffer.from(fileContent, 'base64');
 
-    // Armar metadata
-    const requestBody = {
-      name: filename,
-    };
+    // Crear un Stream a partir del buffer
+    const pass = new PassThrough();
+    pass.end(buffer);
+
+    // Configurar metadata
+    const requestBody = { name: filename };
     if (process.env.GOOGLE_FOLDER_ID) {
       requestBody.parents = [process.env.GOOGLE_FOLDER_ID];
     }
 
-    // Definir media
+    // Definir media con body = nuestro stream
     const media = {
       mimeType: 'application/pdf',
-      body: buffer
+      body: pass
     };
 
-    // IMPORTANTE: forzar uploadType: 'media'
+    // Subir a Drive
     const response = await drive.files.create({
       requestBody,
       media,
-      fields: 'id, webViewLink',
-      // Con esto evitamos multipart y vamos a upload "media" puro
-      uploadType: 'media'
+      fields: 'id, webViewLink'
     });
 
     const fileId = response.data.id;
