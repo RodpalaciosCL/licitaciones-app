@@ -32,6 +32,7 @@ exports.handler = async (event) => {
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
       scopes: ['https://www.googleapis.com/auth/drive']
     });
+
     const drive = google.drive({ version: 'v3', auth });
 
     // Descargar el archivo desde Drive
@@ -40,6 +41,8 @@ exports.handler = async (event) => {
       { fileId, alt: 'media' },
       { responseType: 'arraybuffer' } // Descargar como ArrayBuffer
     );
+
+    console.log('Archivo descargado con éxito.');
 
     const arrayBuffer = response.data;
 
@@ -92,12 +95,13 @@ exports.handler = async (event) => {
       })
     };
   } catch (error) {
-    console.error('Error en processDoc:', error);
+    console.error('Error detallado en processDoc:', error.message, error.stack);
     return {
       statusCode: 500,
       body: JSON.stringify({
         success: false,
-        error: error.message
+        error: error.message,
+        stack: error.stack
       })
     };
   }
