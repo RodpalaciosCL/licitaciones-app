@@ -1,13 +1,9 @@
-// netlify/functions/processDoc.js
-// Descarga el PDF de Drive, extrae texto con pdf-parse, llama a GPT, y retorna logs en el JSON.
-
 const { google } = require('googleapis');
 const fetch = require('node-fetch');
 const pdfParse = require('pdf-parse');
 
 exports.handler = async (event) => {
   try {
-    // Solo POST
     if (event.httpMethod !== 'POST') {
       return {
         statusCode: 405,
@@ -18,7 +14,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // 1. Leer fileId
     const { fileId } = JSON.parse(event.body || '{}');
     if (!fileId) {
       return {
@@ -30,29 +25,24 @@ exports.handler = async (event) => {
       };
     }
 
-    // 2. Autenticación con Google
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
       scopes: ['https://www.googleapis.com/auth/drive']
     });
     const drive = google.drive({ version: 'v3', auth });
 
-    // 3. Descargar PDF desde Drive
     const response = await drive.files.get(
       { fileId, alt: 'media' },
       { responseType: 'arraybuffer' }
     );
 
-    // 4. Buffer del PDF
     const pdfBuffer = Buffer.from(response.data);
     const bufferLength = pdfBuffer.length;
 
-    // 5. Extraer texto con pdf-parse
     const pdfData = await pdfParse(pdfBuffer);
     const text = pdfData.text;
     const textLength = text.length;
 
-    // 6. Llamar a GPT
     const prompt = `
       Analiza este texto de licitación y devuélveme:
       - Resumen
@@ -84,7 +74,6 @@ exports.handler = async (event) => {
     }
     const gptText = gptData.choices[0].text.trim();
 
-    // 7. Respuesta final con logs
     return {
       statusCode: 200,
       body: JSON.stringify({
@@ -94,7 +83,6 @@ exports.handler = async (event) => {
         rawGPT: gptText
       })
     };
-
   } catch (error) {
     return {
       statusCode: 500,
