@@ -8,6 +8,6 @@
   "dependencies": {
     "googleapis": "^105.0.0",
     "node-fetch": "^3.3.0",
-    "pdf-parse": "^2.2.0"
+    "pdf-parse": "^1.1.1"
   }
 }
