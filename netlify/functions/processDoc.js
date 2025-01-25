@@ -6,7 +6,7 @@ const { Configuration, OpenAIApi } = require("openai");
 
 exports.handler = async (event) => {
   try {
-    // 1. Tomamos el fileId de la query
+    // Tomamos fileId de la query
     const { fileId } = event.queryStringParameters || {};
     if (!fileId) {
       return {
@@ -15,7 +15,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // 2. Autenticación con Google (con tus credenciales)
+    // Autenticación con Google (tus credenciales exactas)
     const auth = new google.auth.JWT(
       "licita-personal@licita-448900.iam.gserviceaccount.com",
       null,
@@ -51,27 +51,27 @@ N8s7oaeoWPGcC+SESqCLDdgI
       ["https://www.googleapis.com/auth/drive.readonly"]
     );
 
-    // 3. Descargamos el PDF
+    // Descargamos el PDF como stream
     const drive = google.drive({ version: "v3", auth });
     const response = await drive.files.get(
       { fileId, alt: "media" },
       { responseType: "stream" }
     );
 
-    // 4. Convertimos el stream a Buffer
+    // Convertimos stream a Buffer
     const pdfBuffer = await streamToBuffer(response.data);
 
-    // 5. Extraemos texto con pdf-parse
+    // Parseamos el PDF para extraer texto
     const pdfData = await pdfParse(pdfBuffer);
     const extractedText = pdfData.text;
 
-    // 6. Configuramos OpenAI con tu API Key
+    // OpenAI con tu API Key
     const configuration = new Configuration({
-      apiKey: "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"
+      apiKey: "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",
     });
     const openai = new OpenAIApi(configuration);
 
-    // 7. Pedimos resumen a GPT
+    // Pedimos resumen a GPT
     const gptResponse = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
       messages: [
@@ -79,14 +79,14 @@ N8s7oaeoWPGcC+SESqCLDdgI
         { role: "user", content: `Por favor, resume lo siguiente:\n\n${extractedText}` },
       ],
     });
+
     const resumen = gptResponse.data.choices[0].message.content.trim();
 
-    // 8. Devolvemos el resultado en JSON
     return {
       statusCode: 200,
       body: JSON.stringify({
         mensaje: "Procesado con éxito",
-        resumen
+        resumen,
       }),
     };
   } catch (error) {
@@ -97,7 +97,6 @@ N8s7oaeoWPGcC+SESqCLDdgI
   }
 };
 
-// Helper para transformar un stream en Buffer
 function streamToBuffer(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
