@@ -5,4 +5,4 @@
 
 [functions]
   node_bundler = "zisi"
-  external_node_modules = ["pdf2json", "googleapis", "openai"]
+  external_node_modules = ["pdf-extraction", "googleapis", "openai"]
