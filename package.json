@@ -6,7 +6,7 @@
     "start": "echo \"No local dev\""
   },
   "dependencies": {
-    "googleapis": "^105.0.0"
+    "googleapis": "^105.0.0",
     "node-fetch": "^3.3.0"
   }
 }
